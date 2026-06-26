@@ -412,6 +412,21 @@
             border-color: #C9B1D0;
         }
 
+        /* Saving indicator */
+        .saving-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #A8D5C8;
+            margin-right: 6px;
+            animation: savePulse 1s ease-in-out infinite;
+            vertical-align: middle;
+        }
+        @keyframes savePulse {
+            0%, 100% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
                 animation-duration: 0.01ms !important;
@@ -576,13 +591,26 @@
 
                     <div class="prompt-pulse inline-block bg-gradient-to-r from-accent-light via-lavender-light to-mint-light rounded-2xl px-5 py-3">
                         <p class="text-sm font-bold text-warm-mid">
-                            📸 Screenshot this and send it to me!
+                            Your selections have been saved!
                         </p>
                     </div>
+
+                    <!-- Save status indicator -->
+                    <p id="save-status" class="mt-4 text-xs font-medium" style="color:#A8D5C8; min-height:18px;"></p>
+                </div>
+
+                <p class="mt-6 font-medium text-sm" style="color:#B8A5A5;">Made with a little bit of courage and a lot of hope</p>
+            </div>
         </section>
+
     </main>
 
     <script>
+        /* ============================================================
+           CONFIG — Your Google Apps Script Web App URL
+        ============================================================ */
+        const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzzJ15OIzKeTJZwtbEmu2mVPa0-ESW0hm5sPoVU2UBR8U-CcmkhBMYc0HZ4JCUv4PSX/exec';
+
         /* ============================
            State
         ============================ */
@@ -619,10 +647,10 @@
         const noMessages = [
             'No',
             'No 🥺',
-            'Are you sure? 😊',
+            'Are you sure? 😢',
             'Please? 💔',
             "Don't do this 😭",
-            "I'll be sad 😥",
+            "I'll be sad 🥹",
             'Pretty please? 🙏',
             'Think again! 😤',
             "You can't catch me! 😝",
@@ -635,7 +663,7 @@
         const drinks = [
             { name: 'Smoothie', emoji: '🍓', desc: 'Sweet & fruity' },
             { name: 'Coffee', emoji: '☕', desc: 'Warm & classic' },
-            { name: 'Milkshake', emoji: '🍨🥛', desc: 'Thick, creamy, and sweet' },
+            { name: 'Milkshake', emoji: '🍨', desc: 'Thick, creamy, and sweet' },
             { name: 'Fresh Juice', emoji: '🍹', desc: 'Cool & refreshing' },
         ];
 
@@ -656,6 +684,48 @@
             toastEl.classList.add('show');
             clearTimeout(toastTimeout);
             toastTimeout = setTimeout(() => toastEl.classList.remove('show'), 2500);
+        }
+
+        /* ============================================================
+           Google Sheets — Save Data
+        ============================================================ */
+        async function saveToGoogleSheets() {
+            const statusEl = $('#save-status');
+            if (!statusEl) return;
+
+            // Show saving indicator
+            statusEl.innerHTML = '<span class="saving-dot"></span>Saving...';
+
+            const dateStr = state.selectedDate.toLocaleDateString('en-US', {
+                weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+            });
+
+            const payload = {
+                date: dateStr,
+                time: state.selectedTime,
+                drink: state.selectedDrink.name,
+            };
+
+            try {
+                await fetch(GOOGLE_SHEETS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                // With no-cors we can't read the response, assume success
+                statusEl.innerHTML = '<span style="color:#A8D5C8;">&#10003; Saved</span>';
+
+            } catch (error) {
+                console.error('Failed to save:', error);
+                statusEl.innerHTML = '<span style="color:#F2919B;">&#10007; Couldn\'t save — but the date is still on!</span>';
+            }
+
+            // Clear status after a few seconds
+            setTimeout(() => {
+                if (statusEl) statusEl.innerHTML = '';
+            }, 5000);
         }
 
         /* ============================
@@ -979,6 +1049,9 @@
             }, 300);
 
             startFloatingHearts();
+
+            // Send data to Google Sheets
+            saveToGoogleSheets();
         }
 
         function startFloatingHearts() {
